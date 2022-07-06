@@ -21,8 +21,9 @@ names(variants)
 var_df <- Reduce(cbind, variants) %>% as.data.frame()
 colnames(var_df) <- names(variants)
 
-
 var_df$filtered %>% table
 
 var_pass <- var_df %>% filter(filtered=="00")
 
+
+variants2 <- h5read(h5filePath, "/assays/dna_variants/layers")
