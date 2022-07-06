@@ -1,0 +1,96 @@
+---
+title: An R Markdown document converted from "scripts/extract_samples_info_and_stats.ipynb"
+output: html_document
+---
+
+```{python}
+#import mosaic libraries
+import missionbio.mosaic.io as mio
+import pandas as pd
+import re
+import glob
+```
+
+```{python}
+
+H5_FILES=glob.glob(r'C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/*.h5')
+H5_FILES
+```
+
+```{python}
+SAMPLE_NAMES= [re.search('scDNA_.*_reference', v).group(0) for v in H5_FILES]
+SAMPLE_NAMES
+```
+
+```{python}
+sample_dict=dict(zip(SAMPLE_NAMES, H5_FILES))
+sample_dict
+```
+
+```{python}
+sample_dict.keys()
+```
+
+```{python}
+sample_dict["scDNA_KMM1_reference"]
+```
+
+```{python}
+def without_keys(d, keys):
+    return {k: d[k] for k in d.keys() - keys}
+
+nokey=['sample_name', 'palette']
+```
+
+```{python}
+string=sample_dict["scDNA_KMM1_reference"]
+
+sample_name=re.search("scDNA_.*_reference", string).group(0)
+sample_name
+```
+
+```{python}
+resdf=pd.DataFrame()
+
+for i in sample_dict.keys():
+    
+    sample_name=re.search("scDNA_.*_reference", sample_dict[i]).group(0)
+    path=sample_dict[i]
+    
+    sample = mio.load(path, raw=False, apply_filter=True) 
+    
+    dict_info=without_keys(sample.dna.metadata, nokey)
+   
+    df=pd.DataFrame.from_dict(dict_info, orient='index')
+    
+    df_ren = df.rename(columns={0: 'num'})
+    
+    df2 = pd.DataFrame({'num': [sample_name]})
+    df2.index = ['sample']
+    
+    df3=df2.append(df_ren)
+    df3.index.name = 'var'
+    df3.reset_index(inplace=True)
+    
+    resdf= pd.concat([resdf, df3["num"]], axis=1)
+```
+
+```{python}
+resdf=pd.concat([df3["var"], resdf], axis=1)
+```
+
+```{python}
+exportdf=resdf.T
+exportdf
+```
+
+```{python}
+
+exportdf.to_csv("data/h5_files_stats.tsv", 
+                sep="\t", header= True, index= False  )
+
+
+# exportdf.to_excel("C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/h5_files_stats.xlsx",
+#                 header=False, index=False)
+```
+
