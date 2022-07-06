@@ -17,14 +17,14 @@ all_samp_rc <- data.frame()
 
 s <- list_h5_files[1]
 for(s in list_h5_files ){
-  
+
   h5filePath <- s
   sample <- s %>% str_extract("(?<=scDNA_).*(?=_reference)")
-  
+
   message(sample)
   rc <- h5read(h5filePath, "/assays/dna_read_counts/layers")
-  
-  df <- rc$read_counts %>% t %>% as.data.frame() 
+
+  df <- rc$read_counts %>% t %>% as.data.frame()
 
   # extract and set colnames(ampl) and rownames(cells)
   names <- h5read(h5filePath, "/assays/dna_read_counts/ca" )
@@ -32,8 +32,8 @@ for(s in list_h5_files ){
 
   rownames(df) <- paste0(sample,"/", cells$barcode)
   colnames(df) <- paste0(names$id,"/chr",names$CHROM,":", names$start_pos, "-", names$end_pos)
-  
-  
+
+
   all_samp_rc <- rbind(all_samp_rc, df)
 
 }
@@ -42,13 +42,11 @@ table( str_extract( rownames(all_samp_rc), ".*(?=/)") )
 
 
 #_____ load missionbio mosaic normalized reads for mix sample (for comparison) ____
-norm_reads_mix <- data.table::fread("C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/normalized_reads/scDNA_Mix_reference_norm_reads.csv")
+norm_reads_mix <- data.table::fread("data/scDNA_Mix_reference_norm_reads.csv")
 
 
 #_____ load amplicon stats ____
-ampl <- data.table::fread("C:/Users/andre/Dropbox (Personale)/Boston_DFCI_Broad_work/Missionbio_scDNA/amplicons_list_GC_mapp.txt")
-
-
+ampl <- data.table::fread("data/amplicons_list_GC_mapp.txt")
 
 
 AMPL_tot_reads <- colSums(all_samp_rc %>% select(!matches("tx")))
@@ -67,23 +65,23 @@ ampl$GC_content_cat %>% table
 ampl$mappability_cat <- ampl$mappability_score %>% cut(breaks=c(seq(0,1,0.1))) %>% as.numeric() %>% `/`(10)
 ampl$mappability_cat %>% table
 
-ampl %>% ggplot(aes(GC_content_cat %>% as.factor, tot_reads)) + 
-  geom_boxplot(outlier.shape = NA) + 
+ampl %>% ggplot(aes(GC_content_cat %>% as.factor, tot_reads)) +
+  geom_boxplot(outlier.shape = NA) +
   geom_violin() +
   geom_jitter(height = 0, width = 0.05)
 
 
 
-ampl %>% ggplot(aes(mappability_cat %>% as.factor(), tot_reads)) + 
-  geom_boxplot(outlier.shape = NA) + 
+ampl %>% ggplot(aes(mappability_cat %>% as.factor(), tot_reads)) +
+  geom_boxplot(outlier.shape = NA) +
   geom_violin() +
   geom_jitter(height = 0, width = 0.05)
 
 
 
-gg <- ampl %>% ggplot(aes(GC_content_cat, tot_reads)) + 
-  geom_jitter(alpha=0.5, width = 0.005, height = 0) + 
-  geom_smooth() + 
+gg <- ampl %>% ggplot(aes(GC_content_cat, tot_reads)) +
+  geom_jitter(alpha=0.5, width = 0.005, height = 0) +
+  geom_smooth() +
   ylim(0,1.5*10^7)
 
 gg
@@ -94,7 +92,7 @@ MED_OVERALL <- median(ampl$tot_reads)
 
 GCcatTab <- ampl %>% group_by(GC_content_cat) %>% summarise(median_tot_reads_GCcat=median(tot_reads))
 
-GCcatTab$median_overall <- MED_OVERALL 
+GCcatTab$median_overall <- MED_OVERALL
 GCcatTab$corr_fact <- GCcatTab$median_overall / GCcatTab$median_tot_reads_GCcat
 
 
@@ -102,8 +100,8 @@ ampl2 <- left_join(ampl, GCcatTab, by = "GC_content_cat")
 
 ampl2$tot_reads_GCcorr <- ampl2$tot_reads * ampl2$corr_fact
 
-ampl2%>% ggplot(aes(GC_content_cat, tot_reads_GCcorr)) + 
-  geom_point() + 
+ampl2%>% ggplot(aes(GC_content_cat, tot_reads_GCcorr)) +
+  geom_point() +
   geom_smooth() +
   ylim(0,1.5*10^7)
 
@@ -115,14 +113,14 @@ check <- data.frame(
   phase=c(rep("1-pre", nrow(ampl)), rep("2-post", nrow(ampl))) )
 
 
-check %>% ggplot(aes(GC_content_cat %>% as.factor, totReads)) + 
-  geom_point() + 
+check %>% ggplot(aes(GC_content_cat %>% as.factor, totReads)) +
+  geom_point() +
   geom_boxplot() + facet_grid(~phase) +
   ylim(0,1.5*10^7)
 
 
 
-##################### 
+#####################
 
 samp <- all_samp_rc %>% filter(str_detect(rownames(all_samp_rc), "Mix"))
 
@@ -148,16 +146,11 @@ samp_norm[1:3, 1:2]
 
 samp_GC <- samp_norm %>% sweep(2, col_adjustGC, `*` )
 
-
-
-
 samp_GC_cell_log <- apply(samp_GC_cell, c(1,2), log2)
 
 samp_GC_cell_log %>% as.matrix() %>% density() %>% plot
 
 samp_GC_cell_log[samp_GC_cell_log==-Inf] <- -10
-
-
 
 
 chr_ann <- data.frame(chr=names$CHROM %>% factor(levels = str_sort(names$CHROM %>% unique,numeric = T), ordered = T), row.names = colnames(df))
@@ -168,15 +161,12 @@ breaksList = seq(-5, 5, by = 0.2)
 pheatmap(samp_GC_cell_log, cluster_rows = T, cluster_cols = F,
          show_rownames = F, show_colnames = F,
          color = colorRampPalette(c("navy", "white", "firebrick3"))(length(breaksList)), breaks = breaksList,
-         # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+         # filename = "plots/hm.png", width = 15, height = 10,
          annotation_col = chr_ann )
 
 
-
-
-
 ##################################################
-# remove bad amplicons 
+# remove bad amplicons
 
 all_samp_rc[,1:519] %>% apply( 2, median) %>% `>`(5) %>% table
 idx_low <- (all_samp_rc[,1:519] %>% apply( 2, median) %>% `<`(5))
@@ -198,7 +188,7 @@ keep_ampl <- ampl2$quality == "ok"
 
 ampl2 %>% filter(cov_quality=="ok") %>% .$ampl_median %>% sort %>% plot
 
-write_tsv(ampl2, "amplicons_list_allStats.txt")
+write_tsv(ampl2, "data/amplicons_list_allStats.txt")
 
 ampl3 <- ampl2 %>% filter(cov_quality=="ok")
 
@@ -231,7 +221,7 @@ s3 <- s2 %>% sweep(2, ampl_ability, `/` )
 #_____ Log2 transformation ________
 s3l <- apply(s3, c(1,2), log2)
 
-s3l %>% as.matrix() %>% 
+s3l %>% as.matrix() %>%
   density() %>% plot + abline(v=c(-1.8,-0.8,0))
 
 s3l %>% as.matrix() %>% median
@@ -246,7 +236,7 @@ breaksList = seq(-2.8, 1.2, by =1)
 pheatmap(s3l, cluster_rows = T, cluster_cols = F,
          show_rownames = F, show_colnames = F,
          color = colorRampPalette(c("navy", "white", "firebrick3"))(length(breaksList)), breaks = breaksList,
-         # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+         # filename = "plots/hm.png", width = 15, height = 10,
          annotation_col = chr_ann )
 
 
@@ -261,7 +251,7 @@ breaksList = seq(-0.5, 2.5, by =1)
 pheatmap(s3lt, cluster_rows = T, cluster_cols = F,
          show_rownames = F, show_colnames = F,
          color = c("navy", "white", "firebrick3"), breaks = breaksList,
-         # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+         # filename = "plots/hm.png", width = 15, height = 10,
          annotation_col = chr_ann )
 
 
@@ -280,10 +270,10 @@ chrGap <- colnames(sub) %>% str_extract("(?<=chr)[0-9]+") %>% as.numeric() %>% t
 breaksList = seq(-2, 2, by =0.05)
 pheatmap(sub, cluster_rows = T, cluster_cols = F,
          show_rownames = F, show_colnames = F,
-         cutree_rows = 5, scale = "row", 
-         gaps_col = chrGap, 
+         cutree_rows = 5, scale = "row",
+         gaps_col = chrGap,
          color = colorRampPalette(c("navy", "white", "firebrick3"))(length(breaksList)), breaks = breaksList,
-         # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+         # filename = "plots/hm.png", width = 15, height = 10,
          annotation_col = chr_ann )
 
 
