@@ -6,7 +6,10 @@ library(factoextra)
 library(RColorBrewer)
 
 #================= LOCALIZE DATA ==================
-list_h5_files <- list.files("C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/", pattern = ".*h5$", full.names = T)
+
+H5_files_dir <- "<H5_FILES_PATH>"
+
+list_h5_files <- list.files(H5_files_dir, pattern = ".*h5$", full.names = T)
 
 # mix sample
 h5filePath <- list_h5_files[3]
@@ -20,7 +23,7 @@ h5filePath
 
 rc <- h5read(h5filePath, "/assays/dna_read_counts/layers")
 
-df <- rc$read_counts %>% t %>% as.data.frame() 
+df <- rc$read_counts %>% t %>% as.data.frame()
 
 # extract and set colnames(ampl) and rownames(cells)
 names <- h5read(h5filePath, "/assays/dna_read_counts/ca" )
@@ -39,20 +42,47 @@ number_downsampled_cells <- 500
 df <- df[sample(1:nrow(df), number_downsampled_cells),]
 
 
-# pheatmap(df, cluster_rows = T, cluster_cols = F, 
-#          show_rownames = F, show_colnames = F, 
-#          # color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)), 
+# pheatmap(df, cluster_rows = T, cluster_cols = F,
+#          show_rownames = F, show_colnames = F,
+#          # color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)),
 #          # filename = "C:/Users/andre/Desktop/heatmap_raw.png", width = 15, height = 10,
 #          annotation_col = chr_ann )
 
 
-#_____ load missionbio mosaic normalized reads____
+#_____ load normalized reads by mosaic (custom missionbio approach)____
 
-norm_reads <- data.table::fread("C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/normalized_reads/scDNA_Mix_reference_norm_reads.csv")
+norm_reads <- data.table::fread("data/scDNA_Mix_reference_norm_reads.csv")
+
+
+#========== MISSION BIO normalization / workflow copied from mosaic "normalize_reads" function ============
+
+# ____________ Python code from Mosaic: _____________
+
+# def normalize_reads(self):
+#   """
+#         Normalize the read counts.
+#
+#         This normalization is used to determine
+#         the ploidy of the cells.
+#         """
+#
+# dat = self.layers["read_counts"]
+#
+# # Find good barcodes: those with at least 1/10th the reads of the 10th highest barcode
+# dat_sum = dat.sum(axis=1)
+# s = np.sort(dat_sum)[::-1]
+# good = dat_sum > s[10] / 10
+#
+# normal_counts = deepcopy(dat)
+# normal_counts = normal_counts / (normal_counts.mean(axis=1)[:, None] + 1) # dividere per la media
+# normal_counts = normal_counts / (np.median(normal_counts[good, :], axis=0)[None, :] + 0.05)
+# normal_counts = normal_counts * 2  # For diploid
+#
+# self.add_layer(NORMALIZED_READS, normal_counts)
 
 
 
-#=============== MISSION BIO normalization ===============
+#===== reproduce this approach in R ==========
 
 mat <- df %>% as.matrix()
 
@@ -68,8 +98,8 @@ row_means <- apply(mat, 1, mean ) + 1
 
 m2 <- mat %>% sweep(1, row_means, `/` )
 
-# pheatmap(m2, cluster_rows = T, cluster_cols = F, 
-#          show_rownames = F, show_colnames = F, 
+# pheatmap(m2, cluster_rows = T, cluster_cols = F,
+#          show_rownames = F, show_colnames = F,
 #          annotation_col = chr_ann )
 
 
@@ -86,7 +116,7 @@ m3 <- m2 %>% sweep(2, col_medians, `/` )
 #_______ multiply per 2 - for diploidy__________
 m4 <- (m3 * 2) %>% round(6)
 
-# comparison with official Mosaic normalized data 
+# comparison with official Mosaic normalized data
 nrm <- norm_reads[,-1] %>% as.matrix() %>% round(6)
 table(m4 == nrm) # they are exactly the same!
 
@@ -134,7 +164,7 @@ breaksList = seq(-3, 3, by = 0.1)
 # pheatmap(m3l, cluster_rows = T, cluster_cols = F,
 #          show_rownames = F, show_colnames = F,
 #          color = colorRampPalette(c("navy", "white", "firebrick3"))(length(breaksList)), breaks = breaksList,
-#          # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+#          # filename = "plots/hm.png", width = 15, height = 10,
 #          annotation_col = chr_ann )
 
 
@@ -143,7 +173,7 @@ breaksList = seq(-3, 3, by = 0.1)
 
 input_mat <- m3l
 
-PCA <- prcomp(input_mat) 
+PCA <- prcomp(input_mat)
 
 fviz_eig(PCA, ncp = 30)
 max_dim <- 15
@@ -171,7 +201,7 @@ clust_ann <- data.frame(cluster=umap_df$cluster %>% as.factor(), row.names = row
 # pheatmap(m3l, cluster_rows = T, cluster_cols = F,
 #          show_rownames = F, show_colnames = F,
 #          color = colorRampPalette(c("navy", "white", "firebrick3"))(length(breaksList)), breaks = breaksList,
-#          # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+#          # filename = "plots/hm.png", width = 15, height = 10,
 #          annotation_col = chr_ann,
 #          annotation_row = clust_ann)
 
@@ -182,7 +212,7 @@ m3l_1 %>% dim
 # pheatmap(m3l_1, cluster_rows = T, cluster_cols = F,
 #          show_rownames = F, show_colnames = F,
 #          color = colorRampPalette(c("navy", "white", "firebrick3"))(length(breaksList)), breaks = breaksList,
-#          # filename = "C:/Users/andre/Desktop/hm.png", width = 15, height = 10,
+#          # filename = "plots/hm.png", width = 15, height = 10,
 #          annotation_col = chr_ann,
 #          annotation_row = clust_ann)
 
