@@ -10,6 +10,8 @@ date: '2022-07-07'
 
 # load libraries
 library(tidyverse)
+library(ggpubr)
+
 
 
 #______ Ghob run _____
@@ -21,8 +23,10 @@ df$proportion_bases_r1_q30 <- df$n_bases_r1_q30 %>% as.numeric() / df$n_bases_r1
 df$proportion_bases_r2_q30 <- df$n_bases_r2_q30 %>% as.numeric() / df$n_bases_r2 %>% as.numeric()
 df$proportion_bases_cellBarcode_q30 <- df$n_cell_barcode_bases_q30 %>% as.numeric() / df$n_cell_barcode_bases %>% as.numeric()
 
-df$n_cell_barcode_bases_q30/1000000000
-df$n_cell_barcode_bases/1000000000
+# reverse engineered from Tapestri Pipeline report stats
+df$mean_reads_cell <- (df$n_read_pairs_mapped_to_cells) / df$n_cells
+df$mean_reads_cell_amplicon <- floor(df$mean_reads_cell / df$n_amplicons)
+
 
 df$dataset <- "Ghobrial_lab"
 df$run <- "Ghob_run1"
@@ -40,6 +44,10 @@ dfB1$proportion_bases_r1_q30 <- dfB1$n_bases_r1_q30 %>% as.numeric() / dfB1$n_ba
 dfB1$proportion_bases_r2_q30 <- dfB1$n_bases_r2_q30 %>% as.numeric() / dfB1$n_bases_r2 %>% as.numeric()
 dfB1$proportion_bases_cellBarcode_q30 <- dfB1$n_cell_barcode_bases_q30 %>% as.numeric() / dfB1$n_cell_barcode_bases %>% as.numeric()
 
+# reverse engineered from Tapestri Pipeline report stats
+dfB1$mean_reads_cell <- (dfB1$n_read_pairs_mapped_to_cells) / dfB1$n_cells
+dfB1$mean_reads_cell_amplicon <- floor(dfB1$mean_reads_cell / dfB1$n_amplicons)
+
 dfB1$dataset <- "Bologna_lab"
 dfB1$run <- "Bolo_run1"
 
@@ -56,6 +64,10 @@ dfB2$proportion_bases_r1_q30 <- dfB2$n_bases_r1_q30 %>% as.numeric() / dfB2$n_ba
 dfB2$proportion_bases_r2_q30 <- dfB2$n_bases_r2_q30 %>% as.numeric() / dfB2$n_bases_r2 %>% as.numeric()
 dfB2$proportion_bases_cellBarcode_q30 <- dfB2$n_cell_barcode_bases_q30 %>% as.numeric() / dfB2$n_cell_barcode_bases %>% as.numeric()
 
+# reverse engineered from Tapestri Pipeline report stats
+dfB2$mean_reads_cell <- (dfB2$n_read_pairs_mapped_to_cells) / dfB2$n_cells
+dfB2$mean_reads_cell_amplicon <- floor(dfB2$mean_reads_cell / dfB2$n_amplicons)
+
 dfB2$dataset <- "Bologna_lab"
 dfB2$run <- "Bolo_run2"
 
@@ -68,48 +80,235 @@ interest_vars <- df %>% select_if(is.numeric) %>% names
 allmelt$ID <- allmelt$sample %>% str_remove_all("scDNA_|_reference")
 allmelt$ID <- allmelt$ID %>% factor(levels = str_sort(allmelt$ID %>% unique, numeric = T), ordered = T)
 
+allmelt$run <- ifelse(allmelt$sample %>% str_detect("scDNA"), "Ghob_run1", 
+                      ifelse(allmelt$sample %>% str_detect("sample"), "Bolo_run1", "Bolo_run2"))
+allmelt$run %>% table
 
 alldf <- rbind(df,dfB1, dfB2)
 
 ```
 
-This report is aimed to obtain a global data quality analysis of scDNA-seq samples from MissionBio.
+### Intro
 
-The total dataset includes:
+This report is aimed to obtain a global data quality overview for scDNA-seq samples from MissionBio. The quality metrics were computed by MissionBio Pipeline V2 and directly extracted from output H5 files.
 
--   6 samples from **Ghobrial's lab**: 5 cell lines samples + 1 mixture sample of the other 5 cell lines
+Some metrics (e.g. "Mean reads/cell/amplicon" coverage) were not available in the H5 files, so they were calculated by reverse engineering the numbers that can be viewed on the MissionBio web portal.
 
--   16 samples from **Bologna's lab**: 16 PB samples from 2 separate sequencing runs (8+8)
+The quality metrics of the Ghobrial lab samples were statistically compared with the quality metrics of the Bologna lab samples.
 
 ------------------------------------------------------------------------
 
-### All samples overview
+### Samples Cohort
+
+The total dataset includes 22 samples:
+
+-   6 samples from **Ghobrial lab**: 5 [cell lines samples]{.underline} + 1 mixture sample (made with the other 5 cell lines)
+
+-   16 samples from **Bologna lab**: 16 [PB samples]{.underline} from 2 separate sequencing runs (8+8)
+
+------------------------------------------------------------------------
+
+### All samples table overview
 
 ```{r echo=FALSE}
-alldf %>% select(sample, dataset, run, n_amplicons, chemistry_version, pipeline_version, n_cells, genome_version, ado_rate, avg_panel_uniformity)
+alldf %>% select(sample, dataset, run, n_amplicons, n_cells, ado_rate, avg_panel_uniformity, mean_reads_cell_amplicon, chemistry_version, pipeline_version)
 ```
 
-number of cells
+------------------------------------------------------------------------
 
-```{r echo=FALSE, fig.height=8, fig.width=10}
+### Main metrics - comparisons between runs
+
+#### Number of cells
+
+Number of valid cells (number of cells called by the cellfinder module)
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+my_comparisons <- list( 
+  c("Ghob_run1", "Bolo_run2"),
+  c("Bolo_run1", "Bolo_run2"),
+  c("Ghob_run1", "Bolo_run1") 
+   )
+
 alldf %>% ggplot(aes(run, n_cells)) + 
+  ggtitle("Number of cells per run") +
   geom_violin(aes(fill=run), alpha= 0.3) +
-  geom_boxplot(alpha=0.3)+
+  geom_boxplot(alpha=0.3, colour="grey")+
   geom_jitter(height = 0, width = 0.1) +
   stat_summary(geom="text", fun=quantile,
                aes(label=sprintf("%1.0f", ..y..), color=run),
                position=position_nudge(x=0.48), size=3) +
-  ggtitle("number of cells per run")
-```
-
-```{r}
-
-```
-
-```{r}
+  stat_compare_means(comparisons = my_comparisons,
+                     aes(label =..p.signif..)) +
+  stat_compare_means(label.y.npc = 0.9, label.x.npc = 1) 
 
 ```
 
-```{r}
+#### ADO rate
+
+ADO (Allelic Dropout Rate) is the estimated rate of allelic dropout events. Calculated using germline variants (more informations [here](https://support.missionbio.com/hc/en-us/articles/360062390413-ADO-Calculation))
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+my_comparisons <- list( 
+  c("Ghob_run1", "Bolo_run2"),
+  c("Bolo_run1", "Bolo_run2"),
+  c("Ghob_run1", "Bolo_run1") 
+   )
+
+alldf %>% ggplot(aes(run, ado_rate)) + 
+  ggtitle("ADO rate") +
+  geom_violin(aes(fill=run), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey")+
+  geom_jitter(height = 0, width = 0.1) +
+  stat_summary(geom="text", fun=quantile,
+               aes(label=sprintf("%1.2f", ..y..), color=run),
+               position=position_nudge(x=0.48), size=3) +
+  stat_compare_means(comparisons = my_comparisons,
+                     aes(label =..p.signif..)) +
+  stat_compare_means(label.y.npc = 0.9, label.x.npc = 1) 
+```
+
+#### Average panel uniformity
+
+This is the number of amplicons that have mean reads to the amplicon above 0.2 \* the mean reads per amplicon per cell (ref. [here](https://support.missionbio.com/hc/en-us/articles/360053187154-Run-Report-Metrics#h_01EHSC7F4BZJ3678B16S0CTVVW)).
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+my_comparisons <- list( 
+  c("Ghob_run1", "Bolo_run2"),
+  c("Bolo_run1", "Bolo_run2"),
+  c("Ghob_run1", "Bolo_run1") 
+   )
+
+alldf %>% ggplot(aes(run, avg_panel_uniformity)) + 
+  ggtitle("Average panel uniformity") +
+  geom_violin(aes(fill=run), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey")+
+  geom_jitter(height = 0, width = 0.1) +
+  stat_summary(geom="text", fun=median,
+               aes(label=sprintf("%1.2f", ..y..), color=run),
+               position=position_nudge(x=0.48), size=4) +
+  stat_compare_means(comparisons = my_comparisons,
+                     aes(label =..p.signif..)) +
+  stat_compare_means(label.y.npc = 0.9, label.x.npc = 1) 
+
+```
+
+#### Mean reads/cell
+
+This is the mean reads per called cell. It is the floor of the decimal obtained by dividing the total reads to cells by the number of cells.
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+my_comparisons <- list( 
+  c("Ghob_run1", "Bolo_run2"),
+  c("Bolo_run1", "Bolo_run2"),
+  c("Ghob_run1", "Bolo_run1") 
+   )
+
+alldf %>% ggplot(aes(run, mean_reads_cell)) + 
+  ggtitle("Mean reads/cell") +
+  geom_violin(aes(fill=run), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey")+
+  geom_jitter(height = 0, width = 0.1) +
+  stat_summary(geom="text", fun=quantile,
+               aes(label=sprintf("%1.0f", ..y..), color=run),
+               position=position_nudge(x=0.48), size=3) +
+  stat_compare_means(comparisons = my_comparisons,
+                     aes(label =..p.signif..)) +
+  stat_compare_means(label.y.npc = 0.2, label.x.npc = 1) 
+
+```
+
+#### Mean reads/cell/amplicon
+
+This is the floor of the mean reads per cell divided by the number of amplicons in the panel.
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+my_comparisons <- list( 
+  c("Ghob_run1", "Bolo_run2"),
+  c("Bolo_run1", "Bolo_run2"),
+  c("Ghob_run1", "Bolo_run1") 
+   )
+
+alldf %>% ggplot(aes(run, mean_reads_cell_amplicon)) + 
+  ggtitle("Mean reads/cell/amplicon") +
+  geom_violin(aes(fill=run), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey")+
+  geom_jitter(height = 0, width = 0.1) +
+  stat_summary(geom="text", fun=quantile,
+               aes(label=sprintf("%1.0f", ..y..), color=run),
+               position=position_nudge(x=0.48), size=3) +
+  stat_compare_means(comparisons = my_comparisons,
+                     aes(label =..p.signif..)) +
+  stat_compare_means(label.y.npc = 0.2, label.x.npc = 1) 
+```
+
+------------------------------------------------------------------------
+
+### Cutoffs chosen for mutation filtering
+
+-   **af_cutoff**: Minimum variant allelic fraction used for filtering variants.
+
+-   **dp_cutoff**: Minimum variant depth of coverage.
+
+-   **gq_cutoff:** minimum variant genotype quality.
+
+-   **missing_cells_cutoff:** variants that cannot be genotyped in more than this percentage of cells are not used.
+
+-   **mutated_cells_cutoff:** Variants that are not mutated in more than this percentage of cells are not used.
+
+-   **missing_variants_cutoff:** Cells that have more than this percentage of filtered variants that cannot be genotyped are not used.
+
+    [reference link](https://missionbio.github.io/mosaic/4_data_structure.html#:~:text=and%20mutated_cells_cutoff.-,assay.dna.metadata,-Table)
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+# group variable exploration
+
+# CUTOFFS
+allmelt %>% filter( variable %>% str_detect("cutoff")) %>%
+  mutate(val=as.numeric(value)) %>%
+  ggplot(aes(ID, val, colour=run)) +
+  ggtitle("Cutoffs") +
+  geom_point() +
+  facet_wrap(~ variable, ncol = 3, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "bottom")
+
+```
+
+------------------------------------------------------------------------
+
+### Other stats
+
+-   **proportion_mappedToCell_total_read_pairs** = read pairs that mapped to the genome / total
+
+-   **proportion_validCell_total_read_pairs** = read pairs from cell barcodes that are valid / total
+
+-   **proportion_mappedInsert_total_reads** = reads that map to the amplicons / total
+
+-   **proportion_bases_r1_q30** = bases that have a Q value of 30 or greater from the forward reads / total
+
+-   **proportion_bases_r2_q30** = bases that have a Q value of 30 or greater from the reverse reads / total
+
+-   **proportion_bases_cellBarcode_q30** = bases (with quality of 30 or greater) from cell barcodes / total
+
+    [reference link](https://missionbio.github.io/mosaic/4_data_structure.html?highlight=q30)
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+
+# per base stats
+allmelt %>% filter( variable %>% str_detect("proportion")) %>%
+  mutate(val=as.numeric(value),
+         dataset=ifelse(str_detect(sample,"Sample"), "Bologna_run2",
+                        ifelse(str_detect(sample,"sample"), "Bologna_run1","Ghobrial"))) %>%
+  ggplot(aes(run, val)) +
+  ggtitle("Other quality stats") +
+  geom_violin(aes(fill=run), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey")+
+  geom_jitter(height = 0, width = 0.1) +
+  stat_summary(geom="text", fun=median,
+               aes(label=sprintf("%1.2f", ..y..), color=run),
+               position=position_nudge(x=0.50), size=3) +
+  facet_wrap(~ variable, ncol = 3, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "bottom")
 
 ```
