@@ -1,4 +1,8 @@
 
+install.packages("BiocManager")
+
+BiocManager::install("BSgenome.Hsapiens.UCSC.hg19", update = F)
+
 library(tidyverse)
 
 df <- data.table::fread("data/h5_files_stats.tsv", skip = 1)
