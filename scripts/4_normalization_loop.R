@@ -4,7 +4,8 @@ library(pheatmap)
 library(RColorBrewer)
 
 #================= LOCALIZE DATA ==================
-H5_files_dir <- "<H5_FILES_PATH>"
+
+H5_files_dir <- "~/data/H5_files/"
 
 list_h5_files <- list.files(H5_files_dir, pattern = ".*h5$", full.names = T)
 
