@@ -77,7 +77,7 @@ ampl_anno_ok <- ampl_anno %>% filter(ID_amplicon %in% ampl_to_keep)
 
 df <- Reduce(rbind, all_df)
 
-write_tsv(df %>% rownames_to_column("sample"), "data/h5_raw_read_counts.tsv")
+write_tsv(df %>% rownames_to_column("sample_cellbarcode"), "data/h5_raw_read_counts.tsv")
 
 
 #================= FILTERING AMPLICONS =================
