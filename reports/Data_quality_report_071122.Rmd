@@ -3,8 +3,10 @@ title: "MissionBio data quality Report"
 output: 
   html_document: 
     df_print: kable
-date: '2022-07-07'
+date: '2022-07-11'
 ---
+
+## Part 1: Sample level statistics
 
 ```{r include=FALSE}
 
@@ -311,4 +313,102 @@ allmelt %>% filter( variable %>% str_detect("proportion")) %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         legend.position = "bottom")
 
+```
+
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+
+## Part 2: amplicon and cell level statistics
+
+```{r include=FALSE}
+
+rr <- data.table::fread("../data/h5_raw_read_counts.tsv")
+
+rr2 <- rr %>% tidyr::separate("sample_cellbarcode", into = c("sample", "cellbarcode"), sep = "/")
+
+
+amp_samp <- rr2 %>% reshape2::melt(id.vars=c("sample", "cellbarcode"))
+
+amp_samp2 <- amp_samp %>% group_by(sample, variable) %>% summarise(mean_ampl = round(mean(value),2))
+
+
+```
+
+### Ghobrial samples: Mean amplicon coverage - per sample
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+
+amp_samp2 %>% 
+  ggplot(aes(sample, mean_ampl)) +
+  ggtitle("Mean amplicon coverage - per sample") +
+  geom_violin(aes(fill=sample), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey", outlier.shape = NA)+
+  geom_jitter(height = 0, width = 0.15, size=0.6) +
+  stat_summary(geom="text", fun=median,
+               aes(label=sprintf("%1.2f", ..y..), color=sample),
+               position=position_nudge(x=0.50), size=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "bottom")
+  
+
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
+
+amp_samp2 %>% 
+  ggplot(aes(sample, mean_ampl)) +
+  ggtitle("Mean amplicon coverage - per sample", subtitle = "cutted at 400x mean coverage / red line = 5X mean coverage (failed amplicon threshold)") +
+  geom_violin(aes(fill=sample), alpha= 0.3) +
+  geom_boxplot(alpha=0.3, colour="grey", outlier.shape = NA)+
+  geom_jitter(height = 0, width = 0.15, size=0.6) +
+  stat_summary(geom="text", fun=median,
+               aes(label=sprintf("%1.2f", ..y..), color=sample),
+               position=position_nudge(x=0.50), size=3) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "bottom") +
+  ylim(0,400) +
+  geom_hline(yintercept = 5, linetype=2, colour="red")
+  
+  
+```
+
+------------------------------------------------------------------------
+
+### Ghobrial samples: failed amplicons analysis
+
+Failed = mean coverage \< 5X (arbitrary threshold)
+
+```{r echo=FALSE, warning=FALSE}
+
+amp_samp2$threshold_5 <- ifelse(amp_samp2$mean_ampl<5, "mean_under_5x","mean_over_5x")
+
+table(amp_samp2$sample, amp_samp2$threshold_5)
+
+```
+
+There are N=75 unique amplicons that fails at least once in the 6 samples
+
+```{r echo=FALSE, warning=FALSE}
+
+fail_ampl <- table(amp_samp2$variable, amp_samp2$threshold_5) %>% as.data.frame.matrix() %>% rownames_to_column("ampl")
+
+names(fail_ampl) <- c("amplicon","n_samples_mean_over_5x","n_samples_mean_under_5x")
+
+table(fail_ampl$n_samples_mean_under_5x > 0, dnn = "Amplicons failed in at least 1 sample")
+
+```
+
+Amplicons fails table (0 = no samples failed, 6= all samples failed)
+
+```{r echo=FALSE, warning=FALSE}
+
+fail_ampl$n_samples_mean_under_5x %>% table()
+
+```
+
+Detailed list of failed amplicons
+
+```{r echo=FALSE, warning=FALSE}
+fail_ampl %>% filter(n_samples_mean_under_5x>0) %>% arrange(n_samples_mean_over_5x)
 ```
