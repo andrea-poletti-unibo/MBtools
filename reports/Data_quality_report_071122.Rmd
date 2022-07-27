@@ -411,4 +411,11 @@ Detailed list of failed amplicons
 
 ```{r echo=FALSE, warning=FALSE}
 fail_ampl %>% filter(n_samples_mean_under_5x>0) %>% arrange(n_samples_mean_over_5x)
+
+amplinfo <- data.table::fread("../data/amplicons_list_allStats.txt") 
+amplinfo$amplicon <- paste0(amplinfo$ID_amplicon, "/", amplinfo$chr,":",amplinfo$start,"-",amplinfo$end)
+fail_ampl2 <- left_join(fail_ampl, amplinfo)
+
+fail_ampl2 %>% select(amplicon, n_samples_mean_under_5x, GC_content, mappability_score, ampl_median) %>%  filter(n_samples_mean_under_5x>0) %>% arrange(desc(n_samples_mean_under_5x)) 
+
 ```
