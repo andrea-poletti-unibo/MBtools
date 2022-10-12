@@ -4,8 +4,11 @@ library(pheatmap)
 library(RColorBrewer)
 
 #================= LOCALIZE DATA ==================
+H5_files_dir <- "<H5_FILES_PATH>"
 
-H5_files_dir <- "~/data/H5_files/"
+H5_files_dir <- "C:/Users/andre/Alma Mater Studiorum Università di Bologna(1)/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/"
+
+
 
 list_h5_files <- list.files(H5_files_dir, pattern = ".*h5$", full.names = T)
 
@@ -52,6 +55,17 @@ ampl$cov_quality2 <- ifelse(ampl$ampl_median <300 ,"ok", "high_cov_M300")
 ampl$FILTER <- ifelse(ampl$mappability_score<0.8 | ampl$cov_quality != "ok", 1,0)
 ampl$FILTER %>% table
 
+ampl %>% ggplot(aes(mappability_score)) + geom_histogram()
+ampl %>% ggplot(aes(GC_content)) + geom_histogram()
+
+ampl %>% ggplot(aes(GC_content_cat %>% as.factor(), tot_reads_GCcorr)) + geom_boxplot() + ylim(0,10000000)
+
+ampl$cov_quality %>% table
+ampl %>% ggplot(aes(cov_quality, ampl_median, colour=cov_quality)) + geom_violin() + geom_jitter(height = 0 ,width = 0.3, alpha=0.5)
+
+ampl$ampl_median %>% quantile(seq(0,1,0.1))
+
+
 okampl <- ampl %>% filter(FILTER==0)
 
 ampl_to_keep <- okampl %>% .$ID
@@ -77,7 +91,7 @@ ampl_anno_ok <- ampl_anno %>% filter(ID_amplicon %in% ampl_to_keep)
 
 df <- Reduce(rbind, all_df)
 
-write_tsv(df %>% rownames_to_column("sample_cellbarcode"), "data/h5_raw_read_counts.tsv")
+# write_tsv(df %>% rownames_to_column("sample_cellbarcode"), "data/h5_raw_read_counts.tsv")
 
 
 #================= FILTERING AMPLICONS =================
@@ -90,11 +104,13 @@ df3 <- df2 %>% select(matches(ampl_to_keep))
 
 
 #================= FILTERING CELLS =================
+
 df3 %>% rowSums() %>% plot
 df3 %>% rowSums() %>% summary
 df3 %>% rowSums() %>% quantile(probs = seq(0, 1, 0.1))
 
 df3 %>% rowSums() %>% density %>% plot
+
 
 
 df3 %>% rowSums() %>% `<`(30000) %>% table
@@ -104,6 +120,21 @@ row_sd <- apply(df3, 1, sd )
 row_sd %>% density() %>%  plot + abline(v = 300) # threshold of 300 by visual inspection of density profile
 
 (row_sd > 300) %>% table
+
+z_scores <- (row_sd-mean(row_sd))/sd(row_sd)
+
+z_scores %>% density() %>%  plot + abline(v = 1.96, col="red") # threshold of 300 by visual inspection of density profile
+z_scores %>% sort() %>%  plot
+
+cellqc_df <- data.frame(read_count_sd= row_sd,
+                        z_score= z_scores,
+                        total_reads=df3 %>% rowSums())
+
+
+cellqc_df %>% ggplot(aes(read_count_sd, total_reads)) + geom_point(size=0.5, alpha=0.3, aes(colour=z_score>1.96)) + geom_density2d()
+
+gmodels::CrossTable(cellqc_df$z_score < 1.96)
+
 
 # filter cells based on standard deviation of read counts
 good_cells <- row_sd < 300
@@ -214,12 +245,16 @@ ggsave("plots/UMAP_demultiplexing_clusters.png", height = 8, width = 10)
 
 # check concordance for cluster and samples
 umap_df$sample <-  rownames(umap_df) %>% str_extract(".*(?=/)")
-table(umap_df$sample, umap_df$cluster) # perfect concordance
-
+adc
 umap_df %>% ggplot(aes(UMAP1, UMAP2)) +
   geom_point(aes(colour=sample), alpha=0.33, size=0.5) +
   ggtitle("UMAP with samples annotated")
 ggsave("plots/UMAP_demultiplexing_samples.png", height = 8, width = 10)
+
+
+# save umap deconvolution results
+write_tsv(umap_df %>% rownames_to_column(var = "ID"), "data/umap_deconvolution_clusters.txt")
+
 
 
 #============ HEATMAPS CN visualization ===========
