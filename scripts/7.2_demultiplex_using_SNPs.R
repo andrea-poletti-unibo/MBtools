@@ -129,10 +129,12 @@ table(cells_res_df$ratio_T_F > 1) # set threshold at 1
 cells_res_df$matched <- ifelse(cells_res_df$ratio_T_F > 1, "match", "no_match")
 
 
-write_tsv(cells_res_df, "cells_matching_SNPprofiles.txt")
 
+write_tsv(cells_res_df, "data/cells_matching_SNPprofiles.txt")
 
 #================ validate assignments with UMAP on CNA data ===================
+
+cells_res_df <- fread("data/cells_matching_SNPprofiles.txt")
 
 cells_matched <- cells_res_df %>% filter(matched == "match")
 
@@ -153,8 +155,10 @@ table(merge$sample_match == merge$samples_in_clust)
 
 table(merge$sample_match, merge$samples_in_clust)
 
-merge %>% ggplot(aes(UMAP1, UMAP2, colour=sample_match)) + geom_point()
+merge %>% ggplot(aes(UMAP1, UMAP2, colour=sample_match)) + geom_point(size=0.8, alpha=0.5) +
+  ggtitle("clusters colored by SNP profile assingnment", subtitle = "(96.53% concordance)")
 
+ggsave("plots/SNP_assignment_in_CNA_clusters.png", width = 7, height = 7)
 
 
 
