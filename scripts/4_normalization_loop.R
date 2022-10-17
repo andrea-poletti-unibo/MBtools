@@ -8,8 +8,6 @@ H5_files_dir <- "<H5_FILES_PATH>"
 
 H5_files_dir <- "C:/Users/andre/Alma Mater Studiorum Università di Bologna(1)/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/"
 
-
-
 list_h5_files <- list.files(H5_files_dir, pattern = ".*h5$", full.names = T)
 
 
@@ -55,34 +53,31 @@ ampl$cov_quality2 <- ifelse(ampl$ampl_median <300 ,"ok", "high_cov_M300")
 ampl$FILTER <- ifelse(ampl$mappability_score<0.8 | ampl$cov_quality != "ok", 1,0)
 ampl$FILTER %>% table
 
-ampl %>% ggplot(aes(mappability_score)) + geom_histogram()
-ampl %>% ggplot(aes(GC_content)) + geom_histogram()
-
-ampl %>% ggplot(aes(GC_content_cat %>% as.factor(), tot_reads_GCcorr)) + geom_boxplot() + ylim(0,10000000)
-
-ampl$cov_quality %>% table
-ampl %>% ggplot(aes(cov_quality, ampl_median, colour=cov_quality)) + geom_violin() + geom_jitter(height = 0 ,width = 0.3, alpha=0.5)
-
-ampl$ampl_median %>% quantile(seq(0,1,0.1))
-
+# ampl %>% ggplot(aes(mappability_score)) + geom_histogram()
+# ampl %>% ggplot(aes(GC_content)) + geom_histogram()
+# ampl %>% ggplot(aes(GC_content_cat %>% as.factor(), tot_reads_GCcorr)) + geom_boxplot() + ylim(0,10000000)
+# ampl$cov_quality %>% table
+# ampl %>% ggplot(aes(cov_quality, ampl_median, colour=cov_quality)) + geom_violin() + geom_jitter(height = 0 ,width = 0.3, alpha=0.5)
+# ampl$ampl_median %>% quantile(seq(0,1,0.1))
 
 okampl <- ampl %>% filter(FILTER==0)
 
 ampl_to_keep <- okampl %>% .$ID
 
-okampl$ampl_median %>% plot
+# okampl$ampl_median %>% plot
 
 
 
 # add chromosome arm info to amplicons: Popeye function
 ampl$chr <- parse_number(ampl$chr)
-ampl <- ampl %>% rename(ID_amplicon="ID")
+ampl <- ampl %>% dplyr::rename("ID"="ID_amplicon")
 
 # use this function to add ARM-LEVEL annotation (Popeye2)
 source("scripts/Popeye2.R")
 ampl_anno <- ampl %>% Popeye2(refGenome = "hg19", removeXY = T)
 
-ampl_anno_ok <- ampl_anno %>% filter(ID_amplicon %in% ampl_to_keep)
+ampl_anno_ok <- ampl_anno %>% filter(ID %in% ampl_to_keep)
+
 
 ###################### analyze ############################
 
@@ -209,10 +204,33 @@ pheatmap(test,
 
 
 
-
 ################################ CELL CLUSTERING ####################################
 
 input_mat <- df8 %>% as.matrix()
+
+# #_________ EXPERIMENTAL ANALYSIS for NEW PANEL MissionBio amplicons__________
+# newMb <- xlsx::read.xlsx("C:/Users/andre/Dropbox (Personal)/Boston_DFCI_Broad_work/Missionbio_scDNA/Data_from_JB_Ankit/higlight_panel_design_myeloma_MB_MAL_comments.xlsx", sheetIndex = 1)
+# selectArms <- newMb %>% filter(highlight=="x") %>% select(name) %>% unlist() %>% unique()
+#
+# ampl_idx <- df8 %>% names %>% str_extract("[0-9]+[pq]$") %in% selectArms
+# ampl_idx %>% table # 163 amplicons left
+#
+# df8_b <- df8[,ampl_idx]
+# df8_b %>% names
+# input_mat <- df8_b
+# #___________________________________________________________________________
+
+
+
+#__________________ test only on mix sample cells ___________________________
+
+mix_idx <- df8 %>% rownames() %>% str_detect("Mix")
+df8_mix <- df8[mix_idx,]
+input_mat <- df8_mix
+# ___________________________________________________________________________
+
+
+
 
 # RUN PCA pre UMAP
 PCA <- prcomp(input_mat)
@@ -245,15 +263,43 @@ ggsave("plots/UMAP_demultiplexing_clusters.png", height = 8, width = 10)
 
 # check concordance for cluster and samples
 umap_df$sample <-  rownames(umap_df) %>% str_extract(".*(?=/)")
-adc
+
 umap_df %>% ggplot(aes(UMAP1, UMAP2)) +
   geom_point(aes(colour=sample), alpha=0.33, size=0.5) +
   ggtitle("UMAP with samples annotated")
 ggsave("plots/UMAP_demultiplexing_samples.png", height = 8, width = 10)
 
+# #_______ EXPERIMENTAL new MB panel ____________
+# umap_df %>% ggplot(aes(UMAP1, UMAP2)) +
+#   geom_point(aes(colour=sample), alpha=0.33, size=0.5) +
+#   ggtitle("UMAP with samples annotated", subtitle = "Restricted to only 163 amplicons on the relevant 14 chr-arms")
+# ggsave("plots/UMAP_demultiplexing_samples_RESTRICTED.png", height = 8, width = 10)
+
+
+
+#_______ EXPERIMENTAL new MB panel ____________
+dcv_res <- fread("data/umap_deconvolution_clusters.txt")
+table(dcv_res$cluster, dcv_res$sample)
+dcv_res$sample_clust <- recode(dcv_res$cluster,
+                               "1"="KMM1 - clust1",
+                               "2"="OPM2 - clust2",
+                               "3"="KMS11 - clust3",
+                               "4"="RPMI8226 - clust4",
+                               "5"="MM1S - clust5")
+umap_df <- umap_df %>% rownames_to_column(var = "ID")
+umap_df2 <- left_join(umap_df, dcv_res, by="ID")
+
+umap_df2 %>% ggplot(aes(UMAP1.x, UMAP2.x)) +
+  geom_point(aes(colour=sample_clust), alpha=0.33, size=1) +
+  ggtitle("UMAP with samples annotated", subtitle = "Mix samples cells only (1644 cells)")
+
+ggsave("plots/UMAP_demultiplexing_samples_MIX-SAMPLE-ONLY.png", height = 8, width = 10)
+
+
+
 
 # save umap deconvolution results
-write_tsv(umap_df %>% rownames_to_column(var = "ID"), "data/umap_deconvolution_clusters.txt")
+# write_tsv(umap_df %>% rownames_to_column(var = "ID"), "data/umap_deconvolution_clusters.txt")
 
 
 
