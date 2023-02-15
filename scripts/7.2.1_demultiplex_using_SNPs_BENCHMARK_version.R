@@ -1,4 +1,6 @@
 
+################ Please Note!: BENCHMARK version of the demult analysis on 1/3 of amplicons ####################
+
 library(tidyverse)
 library(data.table)
 library(rhdf5)
@@ -8,8 +10,9 @@ library(gridExtra)
 H5_files_dir <- "C:/Users/andre/Alma Mater Studiorum Università di Bologna(1)/PROJECT Single-Cell - Documenti/DFCI_Ghobrial_RUN/"
 list_h5_files <- list.files(H5_files_dir, pattern = ".*h5$", full.names = T)
 
-snpdata <- data.table::fread("data/SNPs_list_in_panel.txt")
-snpdata$snpID <- paste0("chr",snpdata$chr_name,":",snpdata$chrom_start ,":", snpdata$allele)
+# USE THE BENCHMARK PANEL SNP list!
+snpdataB <- data.table::fread("data/SNPs_list_in_panelBenchmark.txt")
+
 
 
 #=============== select MIX sample ============
@@ -65,17 +68,15 @@ m_NGT_fl <- m_NGT_f %>% rownames_to_column(var = "varID") %>% reshape2::melt(id.
 m_ALL_fl <- left_join(m_AF_fl, m_NGT_fl)
 
 
+
+
 #======= merge with SNP data =========
 m_ALL_fl$var_pos <- m_ALL_fl$varID %>% str_extract("chr[0-9]+:[0-9]+")
-snpdata$var_pos <- snpdata$snpID %>% str_extract("chr[0-9]+:[0-9]+")
 
-
-# m_ALL_SNP_fl <- left_join(m_ALL_fl, snpdata, by=c("varID"= "snpID"))
-m_ALL_SNP_fl <- left_join(m_ALL_fl, snpdata, by="var_pos")
+m_ALL_SNP_fl <- left_join(m_ALL_fl, snpdataB, by="var_pos")
 
 m_ALL_onlySNP_fl <- m_ALL_SNP_fl %>% filter(!is.na(refsnp_id))
 m_ALL_onlySNP_fl$cell_n <- m_ALL_onlySNP_fl$cellID %>% str_extract("(?<=_)[0-9]+(?=_)") %>% as.numeric()
-
 
 
 
@@ -125,74 +126,41 @@ for (i in 1:total_cells){
 
 cells_res_df$ratio_T_F <- cells_res_df$True/cells_res_df$False
 
-table(cells_res_df$ratio_T_F > 1) # set threshold at 1
-cutoff <- 1
+table(cells_res_df$ratio_T_F > 1.5) # set threshold at 1.5
+cutoff <- 1.5
+
 
 mytab <- table(cells_res_df$ratio_T_F > cutoff) %>% as.data.frame() %>% setNames(c("matched","n_cells"))
 
 cells_res_df %>% arrange(ratio_T_F) %>%
   ggplot(aes(1:nrow(cells_res_df), ratio_T_F)) +
-  geom_point() + ggtitle("Knee plot for score1 (True/False)") +
+  geom_point() + ggtitle("Knee plot for score1 (True/False) - BENCHMARK only 150 amplicons") +
   geom_hline(yintercept = cutoff, linetype=2) +
   annotation_custom(tableGrob(mytab), xmin=100, xmax=3000, ymin=2, ymax=3)
 
-ggsave("plots/SNP_analysis/SNP_demultplexing/knee_plot_score1_T-F.png", width = 6, height = 6)
+ggsave("plots/SNP_analysis/SNP_demultplexing/BMK_knee_plot_score1_T-F.png", width = 6, height = 6)
 
 cells_res_df$matched_score1 <- ifelse(cells_res_df$ratio_T_F > cutoff, "match", "no_match")
 
 
 # SAVE
-write_tsv(cells_res_df, "data/cells_matching_SNPprofiles.txt")
-
-
-#______ create score 2: T prop ________
-
-cells_res_df$ratio_T_prop <- cells_res_df$True/(cells_res_df$False + cells_res_df$True)
-
-cells_res_df %>% arrange(ratio_T_prop) %>%
-  ggplot(aes(1:nrow(cells_res_df), ratio_T_prop)) +
-  geom_point() + ggtitle("Knee plot for score2 (True/True+False)")
-ggsave("plots/SNP_analysis/SNP_demultplexing/knee_plot_score2_Tprop.png", width = 6, height = 6)
-
-table(cells_res_df$ratio_T_prop > 0.5)
-
-cells_res_df$matched_score2 <- ifelse(cells_res_df$ratio_T_prop > 0.5, "match", "no_match")
-
-(cells_res_df$matched_score2 == cells_res_df$matched_score1) %>% table # set threshold at 0.5 is equivalent of threshold at 1 in score1
-
-
-#______ create score 3: T/Total ________
-
-cells_res_df$ratio_T_tot <- cells_res_df$True/(cells_res_df$False + cells_res_df$True + cells_res_df$Na)
-
-cells_res_df %>% arrange(ratio_T_tot) %>%
-  ggplot(aes(1:nrow(cells_res_df), ratio_T_tot)) +
-  geom_point() + ggtitle("Knee plot for score3 (True/True+False+NA)")
-ggsave("plots/SNP_analysis/SNP_demultplexing/knee_plot_score3_Ttot.png", width = 6, height = 6)
-
-table(cells_res_df$ratio_T_tot > 0.3) # set threshold at 0.3
-
-cells_res_df$matched_score3 <- ifelse(cells_res_df$ratio_T_tot > 0.3, "match", "no_match")
-
-(cells_res_df$matched_score2 == cells_res_df$matched_score3) %>% table
-
+write_tsv(cells_res_df, "data/BMK_cells_matching_SNPprofiles.txt")
 
 
 
 #============== knee plots faceted per cell-line =========
 
 cells_res_df %>% arrange(ratio_T_F) %>%
-  ggplot(aes(1:nrow(cells_res_df), ratio_T_F)) + geom_hline(yintercept = 1, linetype=2, size = 0.5) +
-  geom_point(aes(colour=matched_score1), size=0.8) + ggtitle("Knee plot for score1 (True/False) faceted per cell-line") +
+  ggplot(aes(1:nrow(cells_res_df), ratio_T_F)) + geom_hline(yintercept = cutoff, linetype=2, size = 0.5) +
+  geom_point(aes(colour=matched_score1), size=0.8) + ggtitle("Knee plot for score1 (True/False) faceted per cell-line - BMK") +
   facet_wrap(~sample_match)
-ggsave("plots/SNP_analysis/SNP_demultplexing/knee_plot_score1_facet_PER_CELL-LINE.png", width = 8, height = 8)
+
+ggsave("plots/SNP_analysis/SNP_demultplexing/BMK_knee_plot_score1_facet_PER_CELL-LINE.png", width = 6, height = 6)
 
 
 #================ validate assignments with UMAP on CNA data ===================
 
 #____ score 1 _____
-
-cells_res_df <- fread("data/cells_matching_SNPprofiles.txt")
 
 cells_matched <- cells_res_df %>% filter(matched_score1 == "match")
 cells_matched$cell_id <- cells_matched$id %>% str_remove("Mix_[0-9]+_")
@@ -207,14 +175,16 @@ merge <- left_join(solution_mix, cells_matched)
 merge$samples_in_clust <- merge$sample_clust %>% str_remove(" - clust.")
 
 table(merge$sample_match == merge$samples_in_clust)
-1588/(1588+57) # 96.5 % concordance!!!!
+1317/(1317+202) # 86.7 % concordance
 
 table(merge$sample_match, merge$samples_in_clust)
 
 tb <- table(merge$sample_match, merge$samples_in_clust) %>% as.data.frame.matrix()
 merge %>% ggplot(aes(UMAP1, UMAP2, colour=sample_match)) + geom_point(size=0.8, alpha=0.5) +
-  ggtitle("clusters of cells colored by SNP profile matching - score1 > 1", subtitle = "(96.53% concordance)") +
+  ggtitle("clusters of cells colored by SNP profile matching (scoreT/F > 1.5) - BMK analysis",
+          subtitle = "(86.7% concordance)") +
   annotation_custom(tableGrob(tb,theme=ttheme_default(base_size = 10)), xmin=3, xmax=11, ymin=-8, ymax=-2)
+
 
 ggsave("plots/SNP_analysis/SNP_demultplexing/SNP_assignment_in_CNA_clusters.png", width = 11, height = 11)
 
@@ -231,7 +201,7 @@ names(sc_df) <- c("id", paste0("score_best_",1:5))
 
 sc_df$diff2best <- sc_df$score_best_1 - sc_df$score_best_2
 
-cut_doub <- 0.5
+cut_doub <- 0.2
 sc_df %>% arrange(diff2best) %>%  ggplot(aes(1:nrow(sc_df), diff2best)) +
   geom_point() + geom_hline(yintercept = cut_doub)
 
@@ -246,26 +216,26 @@ sc_df$cell_id <- sc_df$id %>% str_remove("Mix_[0-9]+_")
 merge2 <- left_join(merge, sc_df, by="cell_id")
 
 merge2 %>% ggplot(aes(UMAP1, UMAP2, colour=doublet_suspect)) + geom_point(size=0.8, alpha=0.5) +
-  ggtitle("clusters of cells colored by doublet suspect")
+  ggtitle("clusters of cells colored by doublet suspect - BENCHMARK ANALYSIS")
 
 merge2$cell_concordance <- ifelse(merge2$sample_match == merge2$samples_in_clust, "concordant", "discordant")
 
 
 table(merge2$cell_concordance, merge2$doublet_suspect)
 merge2 %>% ggplot(aes(UMAP1, UMAP2, colour=doublet_suspect, shape=cell_concordance)) + geom_point(size=0.8, alpha=0.5) +
-  ggtitle("clusters of cells colored by SNP profile matching - score1 > 1")
+  ggtitle("clusters of cells colored by SNP profile matching - score1 > 1.5")
+
 
 # cluster plot clean from suspect doublets
 merge2_c <- merge2 %>% filter(doublet_suspect=="ok")
 table(merge2_c$sample_match == merge2_c$samples_in_clust )
-# 1488/1488 100% CONCORDANCE!!!
-
+1288/(1288+176)
 
 merge2_c %>% ggplot(aes(UMAP1, UMAP2, colour=sample_match)) + geom_point(size=0.8, alpha=0.5) +
-  ggtitle("clusters of cells colored by SNP profile matching (scoreT/F > 1)",
-          subtitle = "CLENANED from doublet suspect cells: 100.0% concordance")
+  ggtitle("clusters of cells colored by SNP profile matching (scoreT/F > 1.5) - BMK analysis",
+          subtitle = "CLENANED from doublet suspect cells: 88.0% concordance")
 
-ggsave("plots/SNP_analysis/SNP_demultplexing/SNP_assignment_in_CNA_clusters_CLEAN_DOUB.png", width = 7, height = 7)
+ggsave("plots/SNP_analysis/SNP_demultplexing/BMK_SNP_assignment_in_CNA_clusters_CLEAN_DOUB.png", width = 7, height = 7)
 
 
 mytab <- table(merge2$cell_concordance, merge2$doublet_suspect) %>% as.data.frame.matrix() %>% setNames(c("doublet suspect", "no doublet"))
@@ -273,4 +243,6 @@ merge2 %>% arrange(diff2best) %>%  ggplot(aes(1:nrow(merge2), diff2best, colour=
   geom_point() + geom_hline(yintercept = cut_doub, linetype=2) +
   annotation_custom(tableGrob(mytab), xmin=100, xmax=1400, ymin=1.5, ymax=2.5)
 
-ggsave("plots/SNP_analysis/SNP_demultplexing/cell_concordance_and_doublet_score.png", width = 8, height = 8)
+ggsave("plots/SNP_analysis/SNP_demultplexing/BMK_cell_concordance_and_doublet_score.png", width = 8, height = 8)
+
+

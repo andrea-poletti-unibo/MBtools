@@ -1,4 +1,4 @@
-id	False	True	Na	sample_match	ratio_T_F	matched
+id	False	True	Na	sample_match	ratio_T_F	matched_score1
 Mix_1_AACAACCTACAGTCCTAA-1	201	136	181	KMM1	0.6766169154228856	no_match
 Mix_1_AACAACCTACAGTCCTAA-1	219	89	210	KMS11	0.4063926940639269	no_match
 Mix_1_AACAACCTACAGTCCTAA-1	162	100	256	MM1S	0.6172839506172839	no_match
