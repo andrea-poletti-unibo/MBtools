@@ -83,6 +83,18 @@ dat %>% ggplot(aes(ampl_order, val)) +
   scale_fill_manual(values = mycolors) +
   ggtitle("Amplicon median coverage per cell ") + xlab("Amplicon") + ylab("Median coverage")
 
+palette2 <- c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
 
-ggsave("C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/OUTPUT_PLOTS/Amplicon_coverage_plot.png", width = 10, height = 8)
+palette3 <- sample(palette2,20)
+
+dat %>% ggplot(aes(ampl_order, val)) +
+  geom_boxplot(outlier.shape = NA, alpha=0.8, aes(fill=gene)) +
+  # geom_jitter(height = 0, width = 0.03, alpha=0.5, size=0.8) +
+  coord_cartesian(ylim = c(0, 400)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=6)) +
+  scale_fill_manual(values = palette3) +
+  ggtitle("Amplicon median coverage per cell ") + xlab("Amplicon") + ylab("Median coverage")
+
+
+ggsave("C:/Users/andre/Alma Mater Studiorum Università di Bologna/PROJECT Single-Cell - Documenti/OUTPUT_PLOTS/Amplicon_coverage_plot_EnricA.png", width = 12, height = 8)
 
